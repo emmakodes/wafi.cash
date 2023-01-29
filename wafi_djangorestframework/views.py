@@ -1,43 +1,38 @@
-from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from decimal import Decimal
-from .models import User, Transaction
-from .serializers import UserSerializer, TransactionSerializer
 
-class UserViewSet(viewsets.ModelViewSet):
+class P2PViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
     @action(detail=False, methods=['post'])
-    def deposit(self, request):
+    def deposit(self, request, pk=None):
         user = self.get_object()
-        user.balance += Decimal(request.data['amount'])
+        user.balance += request.data.get('amount')
         user.save()
-        serializer = self.get_serializer(user)
-        return Response(serializer.data)
+        return Response({'status': 'Deposit successful'})
 
     @action(detail=False, methods=['post'])
     def send_money(self, request, pk=None):
         sender = self.get_object()
-        receiver = User.objects.get(id=request.data['receiver_id'])
-        amount = Decimal(request.data['amount'])
+        receiver = User.objects.get(pk=request.data.get('receiver'))
+        amount = request.data.get('amount')
         if sender.balance < amount:
-            return Response(status=400, data={'error': 'Insufficient funds'})
+            return Response({'status': 'Insufficient balance'})
         sender.balance -= amount
-        sender.save()
         receiver.balance += amount
+        sender.save()
         receiver.save()
-        Transaction.objects.create(sender=sender, receiver=receiver, amount=amount)
-        return Response(status=204)
+        return Response({'status': 'Transaction successful'})
 
-    @action(detail=True, methods=['get'])
-    def balance(self, request, pk=None):
+    @action(detail=False, methods=['post'])
+    def transfer_out(self, request, pk=None):
         user = self.get_object()
-        serializer = self.get_serializer(user)
-        return Response(serializer.data)
+        user.balance -= request.data.get('amount')
+        user.save()
+        return Response({'status': 'Transfer out successful'})
 
-    @action(detail=True, methods=['post'])
-    def withdraw(self, request, pk=None):
+    @action(detail=False, methods=['get'])
+    def check_balance(self, request, pk=None):
         user = self.get_object()
-       
+        return Response({'balance': user.balance})
